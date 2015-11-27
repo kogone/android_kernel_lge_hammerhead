@@ -1,0 +1,25 @@
+[core]
+        repositoryformatversion = 0
+        filemode = true
+[remote "github"]
+        url = https://github.com/kogone/android_kernel_lge_hammerhead
+        projectname = android_kernel_lge_hammerhead
+        fetch = +refs/heads/*:refs/remotes/github/*
+[remote "upstream"]
+        url = git@github.com:CyanogenMod/android_kernel_lge_hammerhead.git
+        fetch = +refs/heads/cm-12.1-caf:refs/remotes/upstream/cm-12.1-caf
+        fetch = +refs/heads/cm-13.0:refs/remotes/upstream/cm-13.0
+        fetch = +refs/heads/cm-13.0-caf:refs/remotes/upstream/cm-13.0-caf
+[branch "cm-13.0-caf"]
+        remote = lab
+        merge = refs/heads/cm-13.0-caf
+[branch "cm-12.1-caf"]
+        remote = upstream
+        merge = refs/heads/cm-12.1-caf
+[branch "cm-13.0"]
+        remote = upstream
+        merge = refs/heads/cm-13.0
+[remote "lab"]
+        url = ssh://git@66.228.39.222:17403/kogone/android_kernel_lge_hammerhead.git
+        fetch = +refs/heads/*:refs/remotes/lab/*
+
