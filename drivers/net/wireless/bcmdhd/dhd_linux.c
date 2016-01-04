@@ -2125,7 +2125,7 @@ dhd_rx_frame(dhd_pub_t *dhdp, int ifidx, void *pktbuf, int numpkt, uint8 chan,
 	DHD_OS_WAKE_LOCK_CTRL_TIMEOUT_ENABLE(dhdp, tout_ctrl);
 
 #ifdef CONFIG_PARTIALRESUME
-	if (tout_rx || tout_ctrl)
+	if ((tout_rx || tout_ctrl) && dhd->pub.up)
 		wifi_process_partial_resume(WIFI_PR_VOTE_FOR_RESUME);
 #endif
 }
@@ -2222,8 +2222,9 @@ dhd_watchdog_thread(void *data)
 			if (dhd->pub.dongle_reset == FALSE) {
 				DHD_TIMER(("%s:\n", __FUNCTION__));
 
-				/* Call the bus module watchdog */
-				dhd_bus_watchdog(&dhd->pub);
+				/* Call the bus module watchdog only if pub.up is TRUE */
+				if (dhd->pub.up)
+					dhd_bus_watchdog(&dhd->pub);
 
 				flags = dhd_os_spin_lock(&dhd->pub);
 				/* Count the tick for reference */
@@ -2265,7 +2266,8 @@ static void dhd_watchdog(ulong data)
 
 	dhd_os_sdlock(&dhd->pub);
 	/* Call the bus module watchdog */
-	dhd_bus_watchdog(&dhd->pub);
+	if (dhd->pub.up)	
+		dhd_bus_watchdog(&dhd->pub);
 
 	flags = dhd_os_spin_lock(&dhd->pub);
 	/* Count the tick for reference */
@@ -6565,7 +6567,7 @@ int dhd_os_wd_wake_lock(dhd_pub_t *pub)
 			wake_lock(&dhd->wl_wdwake);
 #endif
 #ifdef CONFIG_PARTIALRESUME
-		if (!dhd->wakelock_wd_counter)
+		if (!dhd->wakelock_wd_counter && pub->up)
 			wifi_process_partial_resume(WIFI_PR_WD_INIT);
 #endif
 		dhd->wakelock_wd_counter++;

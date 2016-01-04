@@ -8964,16 +8964,19 @@ static s32 wl_notify_escan_complete(struct wl_priv *wl,
 	struct net_device *dev;
 
 	WL_DBG(("Enter \n"));
+
+	mutex_lock(&wl->scan_complete);
+
 	if (!ndev) {
 		WL_ERR(("ndev is null\n"));
 		err = BCME_ERROR;
-		return err;
+		goto out;
 	}
 
 	if (wl->escan_info.ndev != ndev) {
 		WL_ERR(("ndev is different %p %p\n", wl->escan_info.ndev, ndev));
 		err = BCME_ERROR;
-		return err;
+		goto out;
 	}
 
 	if (wl->scan_request) {
@@ -9022,6 +9025,9 @@ static s32 wl_notify_escan_complete(struct wl_priv *wl,
 		wl_clr_p2p_status(wl, SCANNING);
 	wl_clr_drv_status(wl, SCANNING, dev);
 	spin_unlock_irqrestore(&wl->cfgdrv_lock, flags);
+
+out:
+	mutex_unlock(&wl->scan_complete);
 	return err;
 }
 
@@ -9041,7 +9047,7 @@ static s32 wl_escan_handler(struct wl_priv *wl, bcm_struct_cfgdev *cfgdev,
 	u8 *p2p_dev_addr = NULL;
 
 	WL_DBG((" enter event type : %d, status : %d \n",
-		ntoh32(e->event_type), ntoh32(e->status)));
+		ntoh32(e->event_type), status));
 
 	ndev = cfgdev_to_wlc_ndev(cfgdev, wl);
 
@@ -9248,16 +9254,7 @@ static s32 wl_escan_handler(struct wl_priv *wl, bcm_struct_cfgdev *cfgdev,
 		}
 		wl_escan_increment_sync_id(wl, SCAN_BUF_NEXT);
 	}
-#ifdef GSCAN_SUPPORT
-	else if ((status == WLC_E_STATUS_ABORT) || (status == WLC_E_STATUS_NEWSCAN)) {
-		if (status == WLC_E_STATUS_NEWSCAN) {
-			WL_ERR(("WLC_E_STATUS_NEWSCAN : scan_request[%p]\n", wl->scan_request));
-			WL_ERR(("sync_id[%d], bss_count[%d]\n", escan_result->sync_id,
-				escan_result->bss_count));
-		}
-#else
 	else if (status == WLC_E_STATUS_ABORT) {
-#endif /* GSCAN_SUPPORT */
 		wl->escan_info.escan_state = WL_ESCAN_STATE_IDLE;
 		wl_escan_print_sync_id(status, escan_result->sync_id,
 			wl->escan_info.cur_sync_id);
@@ -9570,6 +9567,7 @@ static s32 wl_init_priv(struct wl_priv *wl)
 	wl_init_event_handler(wl);
 	mutex_init(&wl->usr_sync);
 	mutex_init(&wl->event_sync);
+	mutex_init(&wl->scan_complete);
 	err = wl_init_scan(wl);
 	if (err)
 		return err;
@@ -9807,7 +9805,8 @@ void wl_cfg80211_detach(void *para)
 
 static void wl_wakeup_event(struct wl_priv *wl)
 {
-	if (wl->event_tsk.thr_pid >= 0) {
+	dhd_pub_t *dhd = (dhd_pub_t *)(wl->pub);
+	if (dhd->up && (wl->event_tsk.thr_pid >= 0)) {
 		DHD_OS_WAKE_LOCK(wl->pub);
 		up(&wl->event_tsk.sema);
 	}
@@ -10546,8 +10545,10 @@ s32 wl_cfg80211_up(void *para)
 	dhd = (dhd_pub_t *)(wl->pub);
 	if (!(dhd->op_mode & DHD_FLAG_HOSTAP_MODE)) {
 		err = wl_cfg80211_attach_post(wl_to_prmry_ndev(wl));
-		if (unlikely(err))
+		if (unlikely(err)) {
+			mutex_unlock(&wl->usr_sync);
 			return err;
+		}
 	}
 	err = __wl_cfg80211_up(wl);
 	if (unlikely(err))
